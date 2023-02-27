@@ -3,7 +3,7 @@ module binary_24bitmultiplier (a,b,result);
   input [23:0] b;
   output bit [47:0] result;
   bit products [24][48];
-  bit [32:0]sum;
+  bit [5:0]sum;
   int l;
   always_comb begin
    for (int i=0; i < 24; i++) begin
@@ -18,6 +18,6 @@ module binary_24bitmultiplier (a,b,result);
       sum= sum+ products [l][47-k];
     end
       result[k]=sum[0];
-      sum= sum[32:1];
+      sum= sum[5:1];
   end end
 endmodule
