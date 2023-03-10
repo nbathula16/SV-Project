@@ -1,6 +1,4 @@
-module round(input product, output mantissa);
-logic [47:0] product;
-output [22:0] mantissa;
+module round(input logic [47:0]product, output logic [22:0] mantissa);
 logic guard,round,sticky;
 logic [22:0] mantissa_copy;
 
@@ -8,7 +6,9 @@ logic [22:0] mantissa_copy;
 	assign round = product[24];
 	assign sticky = |(product[22:0]);
 	assign mantissa_copy = product[47:25];
-
+  
+    always_comb
+    begin
 	if(guard == 0)
 	mantissa = mantissa_copy;
 	else if (guard ==1 && round == 0 && sticky == 0)
@@ -18,7 +18,8 @@ logic [22:0] mantissa_copy;
 		else 
 			mantissa = mantissa_copy;
 		end
-	else if (guard ==1 && (round|sticky) == 1))
+	else if (guard ==1 && (round|sticky) == 1)
 		mantissa = mantissa_copy;
+    end
 	
 endmodule
