@@ -1,38 +1,40 @@
 module if_normal(input bit [31:0] I,
-                 output bit [23:0]Out);
-  bit sign;
-  bit [7:0] exponent;
+                 output bit [23:0]Out_mantissa,output bit [7:0]Out_exponent,output bit Out_sign);
   bit [22:0] mantissa;
 
   typedef enum {normalized,denormalized,positive_infinity,negative_infinity,NaN} type_of_float;
   type_of_float form;
 
-    assign sign = I[31];
-    assign exponent = I[30:23];
+    assign Out_sign = I[31];
+  assign Out_exponent = I[30:23];
     assign mantissa = I[22:0];
     always_comb begin
-    if (exponent=='0) begin
+      if (Out_exponent=='0) begin
       form = denormalized;
-      Out = {1'b0,mantissa}; end
-    else if (exponent == '1) begin
+      Out_mantissa = {1'b0,mantissa}; end
+      else if (Out_exponent == '1) begin
       if(mantissa == '0) begin
-        if(sign == '0) form = positive_infinity;
-        if(sign == '1) form = negative_infinity;
+        if(Out_sign == '0) form = positive_infinity;
+        if(Out_sign == '1) form = negative_infinity;
       end
       else form = NaN;
     end
     else  begin 
       form = normalized;
-      Out = {1'b1,mantissa}; end
+      Out_mantissa = {1'b1,mantissa}; end
     end 
 endmodule
 
-module product(input bit [31:0]a,b,output bit[47:0]result);
+module product(input bit [31:0]a,b,output bit[47:0]result_new,output bit [7:0]exponent,output bit sign,output string result_str);
   bit [23:0]a_new,b_new;
-  bit [47:0]mul_result,temp,exp_array,result_new;
+  bit [7:0] a_exp,b_exp;
+  bit [8:0]sum_exp;
+  bit a_sign,b_sign;
+  bit [47:0]mul_result,temp,exp_array,result;
   int count1,count2,point_count,c=0,additional_exponent;
-  if_normal m1(a,a_new);
-  if_normal m2(b,b_new);
+  bit carry=0;
+  if_normal m1(a,a_new,a_exp,a_sign);
+  if_normal m2(b,b_new,b_exp,b_sign);
   binary_24bitmultiplier m3(a_new,b_new,mul_result);
   task point(input bit [22:0]I,output int count);
     begin
@@ -57,18 +59,30 @@ module product(input bit [31:0]a,b,output bit[47:0]result);
        temp = mul_result >> c;
       result = temp << (48-point_count);
       exp_array = temp >> point_count;
-      if (mul_result=='0) 
+      if (mul_result=='0 || exp_array=='0) 
      additional_exponent = 0;
     else begin
-      for(int l=0; l<48; l++) begin
+      for(int l=47; l>=0; l--) begin
        additional_exponent = l; 
         if(exp_array[l] == 1)break; 
          end
       end
        result_new= mul_result << additional_exponent;
       end
-      
+  always_comb begin
+    {carry,exponent}= {a_exp+b_exp+additional_exponent-127};
+    sum_exp= {carry,exponent};
+    
+    if (a_exp+b_exp+additional_exponent < 127)
+      result_str="UNDERFLOW";
+     else if (carry==1)
+      result_str="OVERFLOW";
+    else result_str="VALID";
+    sign = a_sign ^ b_sign;
+
+  end  
 endmodule
+  
     
 
 module binary_24bitmultiplier (a,b,result);
@@ -86,7 +100,7 @@ module binary_24bitmultiplier (a,b,result);
  end
   end 
   always_comb begin
-    if(a[22:0] == '0 && b[22:0]=='0) result='0;
+    if(a[22:0] == '0 || b[22:0]=='0) result='0;
     else begin
     for (int k=0; k<48;k++) begin
     for(int l=0;l<24;l++) begin
