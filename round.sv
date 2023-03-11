@@ -13,7 +13,7 @@ logic [22:0] mantissa_copy;
 	mantissa = mantissa_copy;
 	else if (guard ==1 && round == 0 && sticky == 0)
 		begin
-		if(mantissa_copy[22] == 1)
+			if(mantissa_copy[0] == 1)
 			mantissa = mantissa_copy+1;
 		else 
 			mantissa = mantissa_copy;
