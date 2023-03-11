@@ -28,18 +28,20 @@ module if_normal(input bit [31:0] I,
     end 
 endmodule
 
-module product(input bit [31:0]a,b,output bit[47:0]result_new,output bit [7:0]exponent,output bit sign,type_of_float result_str);
+module product(input bit [31:0]a,b,output bit[47:0]result_new,output bit [7:0]exponent,output bit sign,type_of_float result_str,output bit [31:0] fp_result);
   bit [23:0]a_new,b_new,tempx;
+  bit [22:0]mantissa;
   bit [7:0] a_exp,b_exp;
   bit [8:0]sum_exp;
-  bit a_sign,b_sign,sign1;
+  bit a_sign,b_sign,sign1,round_carry;
   bit [47:0]mul_result,temp,exp_array,result;
   int count1,count2,point_count,c=0,additional_exponent;
-  bit carry=0;
+  bit [1:0]carry='0;
     type_of_float float_t1, float_t2,float_t;
   if_normal m1(a,a_new,a_exp,a_sign,float_t1);
   if_normal m2(b,b_new,b_exp,b_sign,float_t2);
- // if_normal m3(result_new[31:0],tempx,exponent,sign1,float_t);
+  round m3(result_new, mantissa,round_carry);
+ 
   binary_24bitmultiplier m4(a_new,b_new,mul_result);
   task point(input bit [22:0]I,output int count);
     begin
@@ -75,19 +77,20 @@ module product(input bit [31:0]a,b,output bit[47:0]result_new,output bit [7:0]ex
        result_new= mul_result << additional_exponent;
       end
   always_comb begin
-    {carry,exponent}= {a_exp+b_exp+additional_exponent-127};
+    {carry,exponent}= {a_exp+b_exp+round_carry+additional_exponent-127};
     sum_exp= {carry,exponent};
     
     if ((float_t1 == positive_infinity) || (float_t1 ==negative_infinity) ||(float_t1 == NaN)) result_str = float_t1;
    
     else if ((float_t2 == positive_infinity) || (float_t2 ==negative_infinity) ||(float_t2 == NaN)) result_str = float_t2;
     
-    else if (a_exp+b_exp+additional_exponent < 127)
+    else if (a_exp+b_exp+round_carry+additional_exponent < 127)
       result_str=UNDERFLOW;
-     else if (carry==1)
+    else if (carry>0)
       result_str=OVERFLOW;
     else result_str=VALID;
     sign = a_sign ^ b_sign;
+    fp_result = {sign,exponent,mantissa};
   end  
 endmodule
   
@@ -117,4 +120,31 @@ module binary_24bitmultiplier (a,b,result);
       result[k]=sum[0];
       sum = sum[5:1];
     end end end
+endmodule
+
+
+module round(input bit [47:0]product, output bit [22:0] mantissa, output bit round_carry);
+bit guard,round,sticky;
+  bit [23:0] mantissa_copy;
+
+	assign guard = product[23];
+	assign round = product[24];
+	assign sticky = |(product[22:0]);
+	assign mantissa_copy = product[47:25];
+  
+    always_comb
+    begin
+	if(guard == 0)
+	mantissa = mantissa_copy;
+	else if (guard ==1 && round == 0 && sticky == 0)
+		begin
+			if(mantissa_copy[0] == 1)
+            {round_carry,mantissa} = mantissa_copy+1;
+		else 
+			{round_carry,mantissa} = mantissa_copy;
+		end
+	else if (guard ==1 && (round|sticky) == 1)
+      {round_carry,mantissa} = mantissa_copy;
+    end
+	
 endmodule
