@@ -1,9 +1,12 @@
-module if_normal(input bit [31:0] I,
-                 output bit [23:0]Out_mantissa,output bit [7:0]Out_exponent,output bit Out_sign);
-  bit [22:0] mantissa;
+package float_type;
+typedef enum {normalized,denormalized,positive_infinity,negative_infinity,NaN,VALID,OVERFLOW,UNDERFLOW} type_of_float;
+endpackage
 
-  typedef enum {normalized,denormalized,positive_infinity,negative_infinity,NaN} type_of_float;
-  type_of_float form;
+import float_type::*;
+
+module if_normal(input bit [31:0] I,
+                 output bit [23:0]Out_mantissa,output bit [7:0]Out_exponent,output bit Out_sign, type_of_float form);
+  bit [22:0] mantissa;
 
     assign Out_sign = I[31];
   assign Out_exponent = I[30:23];
@@ -25,17 +28,19 @@ module if_normal(input bit [31:0] I,
     end 
 endmodule
 
-module product(input bit [31:0]a,b,output bit[47:0]result_new,output bit [7:0]exponent,output bit sign,output string result_str);
-  bit [23:0]a_new,b_new;
+module product(input bit [31:0]a,b,output bit[47:0]result_new,output bit [7:0]exponent,output bit sign,type_of_float result_str);
+  bit [23:0]a_new,b_new,tempx;
   bit [7:0] a_exp,b_exp;
   bit [8:0]sum_exp;
-  bit a_sign,b_sign;
+  bit a_sign,b_sign,sign1;
   bit [47:0]mul_result,temp,exp_array,result;
   int count1,count2,point_count,c=0,additional_exponent;
   bit carry=0;
-  if_normal m1(a,a_new,a_exp,a_sign);
-  if_normal m2(b,b_new,b_exp,b_sign);
-  binary_24bitmultiplier m3(a_new,b_new,mul_result);
+    type_of_float float_t1, float_t2,float_t;
+  if_normal m1(a,a_new,a_exp,a_sign,float_t1);
+  if_normal m2(b,b_new,b_exp,b_sign,float_t2);
+ // if_normal m3(result_new[31:0],tempx,exponent,sign1,float_t);
+  binary_24bitmultiplier m4(a_new,b_new,mul_result);
   task point(input bit [22:0]I,output int count);
     begin
 
@@ -73,13 +78,16 @@ module product(input bit [31:0]a,b,output bit[47:0]result_new,output bit [7:0]ex
     {carry,exponent}= {a_exp+b_exp+additional_exponent-127};
     sum_exp= {carry,exponent};
     
-    if (a_exp+b_exp+additional_exponent < 127)
-      result_str="UNDERFLOW";
+    if ((float_t1 == positive_infinity) || (float_t1 ==negative_infinity) ||(float_t1 == NaN)) result_str = float_t1;
+   
+    else if ((float_t2 == positive_infinity) || (float_t2 ==negative_infinity) ||(float_t2 == NaN)) result_str = float_t2;
+    
+    else if (a_exp+b_exp+additional_exponent < 127)
+      result_str=UNDERFLOW;
      else if (carry==1)
-      result_str="OVERFLOW";
-    else result_str="VALID";
+      result_str=OVERFLOW;
+    else result_str=VALID;
     sign = a_sign ^ b_sign;
-
   end  
 endmodule
   
