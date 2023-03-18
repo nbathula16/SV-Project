@@ -19,7 +19,7 @@ logic [22:0] mantissa_copy;
 			mantissa = mantissa_copy;
 		end
 	else if (guard ==1 && (round|sticky) == 1)
-		mantissa = mantissa_copy;
+		mantissa = mantissa_copy+1;
     end
 	
 endmodule
