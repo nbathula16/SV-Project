@@ -1,17 +1,21 @@
 package float_type;
-typedef enum {normalized,denormalized,positive_infinity,negative_infinity,NaN,VALID,OVERFLOW,UNDERFLOW} type_of_float;
+typedef enum {normalized,denormalized,positive_infinity,negative_infinity,NaN,VALID,OVERFLOW,UNDERFLOW,ZERO} type_of_float;
 endpackage
 
 import float_type::*;
 
 module if_normal(input bit [31:0] I,
-                 output bit [23:0]Out_mantissa,output bit [7:0]Out_exponent,output bit Out_sign, type_of_float form);
+                 output bit [23:0]Out_mantissa,
+                 output bit [7:0]Out_exponent,
+                 output bit Out_sign, type_of_float form);
   bit [22:0] mantissa;
 
     assign Out_sign = I[31];
-  assign Out_exponent = I[30:23];
+	assign Out_exponent = I[30:23];
     assign mantissa = I[22:0];
-    always_comb begin
+  
+    always_comb
+      begin:floattype
       if (Out_exponent=='0) begin
       form = denormalized;
       Out_mantissa = {1'b0,mantissa}; end
@@ -25,103 +29,150 @@ module if_normal(input bit [31:0] I,
     else  begin 
       form = normalized;
       Out_mantissa = {1'b1,mantissa}; end
-    end 
+    end :floattype
 endmodule
 
-module product(input bit [31:0]a,b,output bit[47:0]result_new,output bit [7:0]exponent,output bit sign,type_of_float result_str,output bit [31:0] fp_result);
-  bit [23:0]a_new,b_new,tempx;
-  bit [22:0]mantissa;
-  bit [7:0] a_exp,b_exp;
-  bit [8:0]sum_exp;
-  bit a_sign,b_sign,sign1,round_carry;
-  bit [47:0]mul_result,temp,exp_array,result;
-  int count1,count2,point_count,c=0,additional_exponent;
-  bit [1:0]carry='0;
-    type_of_float float_t1, float_t2,float_t;
-  if_normal m1(a,a_new,a_exp,a_sign,float_t1);
-  if_normal m2(b,b_new,b_exp,b_sign,float_t2);
-  round m3(result_new, mantissa,round_carry);
- 
-  binary_24bitmultiplier m4(a_new,b_new,mul_result);
-  task point(input bit [22:0]I,output int count);
-    begin
-
-      for(int i=0; i<22; i++) begin
-        count = i;
-        if(I[i]==1) break; 
-      end
- 
-    end
-  endtask
-    always_comb begin
-      point(a_new[22:0],count1);
-      point(b_new[22:0],count2);
-      point_count = 46 - (count1 + count2);
-      
-      for(int l=0; l<48; l++) begin
-       c = l; 
-        if(mul_result[l] == 1)break; 
-         end
-     
-       temp = mul_result >> c;
-      result = temp << (48-point_count);
-      exp_array = temp >> point_count;
-      if (mul_result=='0 || exp_array=='0) 
-     additional_exponent = 0;
-    else begin
-      for(int l=47; l>=0; l--) begin
-       additional_exponent = l; 
-        if(exp_array[l] == 1)break; 
-         end
-      end
-       result_new= mul_result << additional_exponent;
-      end
-  always_comb begin
-    {carry,exponent}= {a_exp+b_exp+round_carry+additional_exponent-127};
-    sum_exp= {carry,exponent};
-    
-    if ((float_t1 == positive_infinity) || (float_t1 ==negative_infinity) ||(float_t1 == NaN)) result_str = float_t1;
-   
-    else if ((float_t2 == positive_infinity) || (float_t2 ==negative_infinity) ||(float_t2 == NaN)) result_str = float_t2;
-    
-    else if (a_exp+b_exp+round_carry+additional_exponent < 127)
-      result_str=UNDERFLOW;
-    else if (carry>0)
-      result_str=OVERFLOW;
-    else result_str=VALID;
-    sign = a_sign ^ b_sign;
-    fp_result = {sign,exponent,mantissa};
-  end  
-endmodule
+module product(input logic [31:0]a,b,
+               output bit [31:0] fp_result,
+               output bit U,O);
   
+  bit[47:0]result_mantissa,mul_result;
+  bit [7:0]exponent,a_exp,b_exp;
+  bit sign,additional_exponent,round_carry,a_sign,b_sign;
+  bit [23:0]a_new,b_new;
+  bit [22:0]mantissa;
+  bit [8:0]sum_exp;
+  bit [1:0]carry;
+  
+  type_of_float result_str, float_a, float_b; 
+  if_normal m1(a,a_new,a_exp,a_sign,float_a);
+  if_normal m2(b,b_new,b_exp,b_sign,float_b);
+  round m3(result_mantissa, mantissa,round_carry);
+  binary_24bitmultiplier m5(a_new,b_new,mul_result);
+  
+    always_comb 
+      begin:compute_mantissa
+      if (mul_result[47:46]==2'b00) begin
+        result_mantissa= {mul_result[45:0],2'b00};
+        additional_exponent=0; end
+      if (mul_result[47:46]==2'b01) begin
+        result_mantissa={mul_result[45:0],2'b00};
+        additional_exponent=0; end
+      if (mul_result[47:46]==2'b10) begin
+       result_mantissa={mul_result[46:0],1'b0};
+        additional_exponent=1; end
+      if (mul_result[47:46]==2'b11) begin
+       result_mantissa={mul_result[46:0],1'b0};
+        additional_exponent=1; end
+      end:compute_mantissa
+  
+  always_comb
+    begin:Compute_final_result
+      
+      if (a=='0 || b=='0) begin //a and b inputs zero
+        result_str= ZERO;  U=0;O=0; end
+      
+     else if ((float_a == positive_infinity) || (float_a ==negative_infinity) ||(float_a == NaN)) result_str = float_a; //Checking the float-type of input 1
+   
+      else if ((float_b == positive_infinity) || (float_b ==negative_infinity) ||(float_b == NaN)) result_str = float_b; //Checking the float-type of input2
+      
+      else begin
+      
+        if ((a_exp=='0) && (b_exp=='0))begin //a and b denormalized
+      exponent={-126+-126+round_carry+additional_exponent+127};
+      result_str = UNDERFLOW;
+        U=1;O=0; end
+      
+        else if ((a_exp=='0) && (b_exp!=='0)) begin //a-denormalized b-normalized
+    {carry,exponent}= {-126+b_exp+round_carry+additional_exponent};
+      if(exponent=='1 && mantissa!='1)  begin 
+       result_str=NaN; U=0;O=0; end
+          else if({-126+b_exp-127+round_carry+additional_exponent+127} < 1) begin
+          result_str= UNDERFLOW; U=1;O=0;end
+          else if({-126+b_exp-127+round_carry+additional_exponent+126} == 0) begin
+          exponent='0; U=0;O=0; end
+       else if({-126+b_exp-127+round_carry+additional_exponent+127} > 254) begin
+            result_str= OVERFLOW; U=0;O=1;end 
+       else begin
+          result_str = VALID;  
+     U=0;O=0; end
+      end
+      
+        else if ((a_exp!=='0) && (b_exp=='0)) //a-normalized b-denormalized
+        begin
+         {carry,exponent}= {-126+a_exp+round_carry+additional_exponent};
+          if(exponent=='1 && mantissa!='1)  begin 
+       result_str=NaN; U=0;O=0; end
+          else if({-126+a_exp-127+round_carry+additional_exponent+127} < 1) begin
+          result_str= UNDERFLOW; U=1;O=0;end
+          else if({-126+a_exp-127+round_carry+additional_exponent+126} == 0) begin
+          exponent='0; U=0;O=0; end
+          else if({-126+a_exp-127+round_carry+additional_exponent+127}>254) begin
+            result_str= OVERFLOW; U=0;O=1;end
+        else begin  
+          result_str = VALID;  
+     U=0;O=0; end
+      end 
+      
+    else begin //a and b normalized
+    {carry,exponent}= {a_exp+b_exp+round_carry+additional_exponent-127};
+      
+      if(exponent=='1 && mantissa!=='1)  begin 
+       result_str=NaN; U=0;O=0; end
+      
+      else if({b_exp+a_exp+round_carry+additional_exponent-127} < 1) begin
+          result_str= UNDERFLOW; U=1;O=0;end
+      
+      else if({b_exp-127+a_exp+round_carry+additional_exponent+126} == 0)     begin
+          exponent='0; U=0;O=0; end
+      else if(carry==1)begin
+            result_str= OVERFLOW; U=0;O=1;end
+        else begin  
+          result_str = VALID;  
+     U=0;O=0; end
+      end 
+      end
+      
+     sum_exp= {carry,exponent};  
+     sign = a_sign ^ b_sign; //sign bit
+     fp_result = {sign,exponent,mantissa};  //final floating point result
+    
+  end:Compute_final_result
+  
+    always_comb
+      begin: Assertions
+        a_inputs:  assert(!$isunknown(b))
+          else  $info("Unknown inputs");
+      end: Assertions
+   
+endmodule
+ 
     
 
-module binary_24bitmultiplier (a,b,result);
-  input  [23:0] a;
-  input [23:0] b;
-  output bit [47:0] result;
+module binary_24bitmultiplier (input [23:0] a,b,
+                               output bit [47:0]result);
   bit products [24][48];
   bit [5:0]sum;
-  int l;
-  always_comb begin
+  
+  always_comb 
+    begin:rowmultiplication
    for (int i=0; i < 24; i++) begin
     for(int j=0;j<24;j++) begin
        products[i][47-j-i] = (a[j] & b[i]);
      end
  end
-  end 
-  always_comb begin
-    if(a[22:0] == '0 || b[22:0]=='0) result='0;
-    else begin
+  end:rowmultiplication
+  always_comb 
+    begin: sumofcoloumns
     for (int k=0; k<48;k++) begin
     for(int l=0;l<24;l++) begin
       sum = sum + products [l][47-k];
     end
       result[k]=sum[0];
       sum = sum[5:1];
-    end end end
+  end
+  end:sumofcoloumns
 endmodule
-
 
 module round(input bit [47:0]product, output bit [22:0] mantissa, output bit round_carry);
 bit guard,round,sticky;
@@ -133,7 +184,7 @@ bit guard,round,sticky;
 	assign mantissa_copy = product[47:25];
   
     always_comb
-    begin
+    begin: rounding
 	if(guard == 0)
 	mantissa = mantissa_copy;
 	else if (guard ==1 && round == 0 && sticky == 0)
@@ -144,7 +195,7 @@ bit guard,round,sticky;
 			{round_carry,mantissa} = mantissa_copy;
 		end
 	else if (guard ==1 && (round|sticky) == 1)
-      {round_carry,mantissa} = mantissa_copy;
-    end
+      {round_carry,mantissa} = mantissa_copy+1;
+    end : rounding
 	
 endmodule
