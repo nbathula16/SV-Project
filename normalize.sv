@@ -34,7 +34,7 @@ endmodule
 
 module product(input logic [31:0]a,b,
                output bit [31:0] fp_result,
-               output bit U,O);
+               output bit U,O,N);
   
   bit[47:0]result_mantissa,mul_result;
   bit [7:0]exponent,a_exp,b_exp;
@@ -86,7 +86,7 @@ module product(input logic [31:0]a,b,
         else if ((a_exp=='0) && (b_exp!=='0)) begin //a-denormalized b-normalized
     {carry,exponent}= {-126+b_exp+round_carry+additional_exponent};
       if(exponent=='1 && mantissa!='1)  begin 
-       result_str=NaN; U=0;O=0; end
+       result_str=NaN; U=0;O=0;N=1; end
           else if({-126+b_exp-127+round_carry+additional_exponent+127} < 1) begin
           result_str= UNDERFLOW; U=1;O=0;end
           else if({-126+b_exp-127+round_carry+additional_exponent+126} == 0) begin
@@ -102,7 +102,7 @@ module product(input logic [31:0]a,b,
         begin
          {carry,exponent}= {-126+a_exp+round_carry+additional_exponent};
           if(exponent=='1 && mantissa!='1)  begin 
-       result_str=NaN; U=0;O=0; end
+       result_str=NaN; U=0;O=0;N=1; end
           else if({-126+a_exp-127+round_carry+additional_exponent+127} < 1) begin
           result_str= UNDERFLOW; U=1;O=0;end
           else if({-126+a_exp-127+round_carry+additional_exponent+126} == 0) begin
@@ -118,9 +118,9 @@ module product(input logic [31:0]a,b,
     {carry,exponent}= {a_exp+b_exp+round_carry+additional_exponent-127};
       
       if(exponent=='1 && mantissa!=='1)  begin 
-       result_str=NaN; U=0;O=0; end
+       result_str=NaN; U=0;O=0;N=1; end
       
-      else if({b_exp+a_exp+round_carry+additional_exponent-127} < 1) begin
+      else if({b_exp+a_exp+round_carry+additional_exponent-127+127} < 128) begin
           result_str= UNDERFLOW; U=1;O=0;end
       
       else if({b_exp-127+a_exp+round_carry+additional_exponent+126} == 0)     begin
@@ -178,24 +178,24 @@ module round(input bit [47:0]product, output bit [22:0] mantissa, output bit rou
 bit guard,round,sticky;
   bit [23:0] mantissa_copy;
 
-	assign guard = product[23];
-	assign round = product[24];
+	assign guard = product[24];
+	assign round = product[23];
 	assign sticky = |(product[22:0]);
 	assign mantissa_copy = product[47:25];
   
     always_comb
-    begin: rounding
-	if(guard == 0)
-	mantissa = mantissa_copy;
-	else if (guard ==1 && round == 0 && sticky == 0)
-		begin
-			if(mantissa_copy[0] == 1)
-            {round_carry,mantissa} = mantissa_copy+1;
-		else 
-			{round_carry,mantissa} = mantissa_copy;
-		end
-	else if (guard ==1 && (round|sticky) == 1)
-      {round_carry,mantissa} = mantissa_copy+1;
-    end : rounding
+     begin: rounding
 	
+    if(guard==1 && round == 1)
+	  {round_carry,mantissa} = mantissa_copy+1;
+    else if(guard==1 && round == 0 && sticky == 1)
+	    {round_carry,mantissa} = mantissa_copy+1;
+    else if(guard==1 && round == 0 && sticky == 0)
+		if(mantissa_copy[0] == 1)
+			{round_carry,mantissa} = mantissa_copy+1;
+		else 
+			{round_carry,mantissa} = mantissa_copy+1;
+	else if(guard ==0)
+		 {round_carry,mantissa} = mantissa_copy;
+	end
 endmodule
