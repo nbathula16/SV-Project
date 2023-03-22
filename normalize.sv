@@ -16,9 +16,11 @@ module if_normal(input bit [31:0] I,
   
     always_comb
       begin:floattype
+        
       if (Out_exponent=='0) begin
       form = denormalized;
       Out_mantissa = {1'b0,mantissa}; end
+        
       else if (Out_exponent == '1) begin
       if(mantissa == '0) begin
         if(Out_sign == '0) form = positive_infinity;
@@ -26,6 +28,7 @@ module if_normal(input bit [31:0] I,
       end
       else form = NaN;
     end
+        
     else  begin 
       form = normalized;
       Out_mantissa = {1'b1,mantissa}; end
@@ -36,39 +39,53 @@ module product(input logic [31:0]a,b,
                output bit [31:0] fp_result,
                output bit U,O,N);
   
-  bit[47:0]result_mantissa,mul_result;
+  bit[47:0]result_mantissa,mul_result,multiplier_result;
   bit [7:0]exponent,a_exp,b_exp;
   bit sign,additional_exponent,round_carry,a_sign,b_sign;
   bit [23:0]a_new,b_new;
   bit [22:0]mantissa;
   bit [8:0]sum_exp;
   bit [1:0]carry;
-  
+  bit [5:0]denorm_shift;
+  bit [1:0]state;
+  int count,i,shift;
   type_of_float result_str, float_a, float_b; 
   if_normal m1(a,a_new,a_exp,a_sign,float_a);
   if_normal m2(b,b_new,b_exp,b_sign,float_b);
   round m3(result_mantissa, mantissa,round_carry);
   binary_24bitmultiplier m5(a_new,b_new,mul_result);
-  
-    always_comb 
-      begin:compute_mantissa
-      if (mul_result[47:46]==2'b00) begin
-        result_mantissa= {mul_result[45:0],2'b00};
-        additional_exponent=0; end
-      if (mul_result[47:46]==2'b01) begin
-        result_mantissa={mul_result[45:0],2'b00};
-        additional_exponent=0; end
-      if (mul_result[47:46]==2'b10) begin
+  assign state= mul_result[47:46];
+ 
+  always_comb begin
+    unique case(state)
+      2'b00: begin 
+        for(i=47; i>=0; i--) begin
+        count = i;
+        shift = 48-count;
+          if(mul_result[i]==1'b1) break; 
+       end
+        result_mantissa={mul_result<<shift};
+        denorm_shift= 47-count-1; 
+      end
+      2'b01: begin
+            result_mantissa={mul_result[45:0],2'b00};
+        additional_exponent=0; 
+      denorm_shift= 0;end
+      2'b10: begin 
+              result_mantissa={mul_result[46:0],1'b0};
+        additional_exponent=1;
+      denorm_shift= 0;
+      end
+      2'b11: begin
        result_mantissa={mul_result[46:0],1'b0};
-        additional_exponent=1; end
-      if (mul_result[47:46]==2'b11) begin
-       result_mantissa={mul_result[46:0],1'b0};
-        additional_exponent=1; end
-      end:compute_mantissa
+        additional_exponent=1;
+      denorm_shift= 0;
+      end
+    endcase
+  end
   
   always_comb
     begin:Compute_final_result
-      
       if (a=='0 || b=='0) begin //a and b inputs zero
         result_str= ZERO;  U=0;O=0; end
       
@@ -79,19 +96,19 @@ module product(input logic [31:0]a,b,
       else begin
       
         if ((a_exp=='0) && (b_exp=='0))begin //a and b denormalized
-      exponent={-126+-126+round_carry+additional_exponent+127};
+          exponent={-126+-126+round_carry+additional_exponent-denorm_shift+127};
       result_str = UNDERFLOW;
         U=1;O=0; end
       
         else if ((a_exp=='0) && (b_exp!=='0)) begin //a-denormalized b-normalized
-    {carry,exponent}= {-126+b_exp+round_carry+additional_exponent};
+          {carry,exponent}= {-126+b_exp+round_carry+additional_exponent-denorm_shift};
       if(exponent=='1 && mantissa!='1)  begin 
        result_str=NaN; U=0;O=0;N=1; end
-          else if({-126+b_exp-127+round_carry+additional_exponent+127} < 1) begin
+          else if({-126+b_exp-127+round_carry+additional_exponent-denorm_shift+127+47+127} < (1+47+127)) begin
           result_str= UNDERFLOW; U=1;O=0;end
-          else if({-126+b_exp-127+round_carry+additional_exponent+126} == 0) begin
+          else if({-126+b_exp-127+round_carry+additional_exponent-denorm_shift+126+47} == (0+47)) begin
           exponent='0; U=0;O=0; end
-       else if({-126+b_exp-127+round_carry+additional_exponent+127} > 254) begin
+          else if({-126+b_exp-127+round_carry+additional_exponent-denorm_shift+127+47} > (47+254)) begin
             result_str= OVERFLOW; U=0;O=1;end 
        else begin
           result_str = VALID;  
@@ -100,14 +117,14 @@ module product(input logic [31:0]a,b,
       
         else if ((a_exp!=='0) && (b_exp=='0)) //a-normalized b-denormalized
         begin
-         {carry,exponent}= {-126+a_exp+round_carry+additional_exponent};
+          {carry,exponent}= {-126+a_exp+round_carry+additional_exponent-denorm_shift};
           if(exponent=='1 && mantissa!='1)  begin 
        result_str=NaN; U=0;O=0;N=1; end
-          else if({-126+a_exp-127+round_carry+additional_exponent+127} < 1) begin
+          else if({-126+a_exp-127+round_carry+additional_exponent-denorm_shift+127+47} < (1+47)) begin
           result_str= UNDERFLOW; U=1;O=0;end
-          else if({-126+a_exp-127+round_carry+additional_exponent+126} == 0) begin
+          else if({-126+a_exp-127+round_carry+additional_exponent-denorm_shift+126+47} == (0+47)) begin
           exponent='0; U=0;O=0; end
-          else if({-126+a_exp-127+round_carry+additional_exponent+127}>254) begin
+          else if({-126+a_exp-127+round_carry+additional_exponent-denorm_shift+127+47}>(254+47)) begin
             result_str= OVERFLOW; U=0;O=1;end
         else begin  
           result_str = VALID;  
@@ -125,7 +142,7 @@ module product(input logic [31:0]a,b,
       
       else if({b_exp-127+a_exp+round_carry+additional_exponent+126} == 0)     begin
           exponent='0; U=0;O=0; end
-      else if(carry==1)begin
+      else if(carry>0)begin
             result_str= OVERFLOW; U=0;O=1;end
         else begin  
           result_str = VALID;  
@@ -134,45 +151,51 @@ module product(input logic [31:0]a,b,
       end
       
      sum_exp= {carry,exponent};  
-     sign = a_sign ^ b_sign; //sign bit
-     fp_result = {sign,exponent,mantissa};  //final floating point result
+      sign = a_sign ^ b_sign;
+      fp_result = {(a_sign ^ b_sign),exponent,mantissa};  
     
   end:Compute_final_result
   
     always_comb
-      begin: Assertions
+      begin
         a_inputs:  assert(!$isunknown(b))
           else  $info("Unknown inputs");
-      end: Assertions
-   
+        a_overflow: assert((U||N)||(carry ~^ O))
+        else $info("Overflow Flag Error");
+//         a_underflow: assert((result_str == VALID)||(U&&~O&&~N))
+//           else $error("Underflow Flag Error");
+        a_zero: assert($countones(a)||$countones(b)==(!(result_str == ZERO)))
+          else $display("Wrong Zero");
+        
+        
+      end
 endmodule
  
-    
-
-module binary_24bitmultiplier (input [23:0] a,b,
-                               output bit [47:0]result);
+   
+module binary_24bitmultiplier (a,b,result);
+  input  [23:0] a;
+  input [23:0] b;
+  output bit [47:0] result;
   bit products [24][48];
   bit [5:0]sum;
-  
-  always_comb 
-    begin:rowmultiplication
+  int l;
+  always_comb begin
    for (int i=0; i < 24; i++) begin
     for(int j=0;j<24;j++) begin
        products[i][47-j-i] = (a[j] & b[i]);
      end
  end
-  end:rowmultiplication
-  always_comb 
-    begin: sumofcoloumns
+  end
+  always_comb begin
     for (int k=0; k<48;k++) begin
     for(int l=0;l<24;l++) begin
       sum = sum + products [l][47-k];
     end
       result[k]=sum[0];
       sum = sum[5:1];
-  end
-  end:sumofcoloumns
+  end end
 endmodule
+
 
 module round(input bit [47:0]product, output bit [22:0] mantissa, output bit round_carry);
 bit guard,round,sticky;
@@ -199,3 +222,4 @@ bit guard,round,sticky;
 		 {round_carry,mantissa} = mantissa_copy;
 	end
 endmodule
+
