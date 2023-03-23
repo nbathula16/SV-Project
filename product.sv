@@ -133,14 +133,11 @@ module product(input logic [31:0]a,b,
   
     always_comb
       begin
-	  // a_zero: assert($countones(a)||$countones(b)==(!(result_str == ZERO)))
-          // else $info("Wrong Zero,%b,%b,%b",a,b,fp_result);
-        a_inputs:  assert(!$isunknown(b))
-          else  $info("Unknown inputs");
-        // a_overflow: assert((U||N)||(carry ~^ O))
-        // else $info("Overflow Flag Error");
-//         a_underflow: assert((result_str == VALID)||(U&&~O&&~N))
-//           else $error("Underflow Flag Error");
+	      
+	a_inputs:  assert(!$isunknown(b))
+        else  $info("Unknown inputs");
+        a_overflow: assert((U||N)||(carry ~^ O))
+        else $info("Overflow Flag Error");
         
         end
 		
