@@ -1,21 +1,20 @@
 class transactiona;
   rand bit[31:0] m;
-  //constraint denorm_and_norm{m[30:23] inside {[8'b00000000:8'b11111110]};}
-   // constraint denorm{m[30:23]!='0;}
-  // constraint infinity{m[30:23]!='1 && m[22:0]!='0; }
-  // constraint NAN{m[30:23]!='1;}
-  // constraint sign{m[31]==1'b0;}
-  constraint norm{1<m[30:23]<0;};
+  
+   constraint denorm{m[30:23]!='0;}
+   constraint infinity{m[30:23]!='1 && m[22:0]!='0; }
+   constraint NAN{m[30:23]!='1;}
+   constraint sign{m[31]==1'b0;}
   
 endclass
 
 class transactionb;
   rand bit[31:0] n;
-   constraint norm{1<n[30:23]<0;};
-  // constraint denorm{n[30:23]!='0;}
-  // constraint infinity{n[30:23]!='1 && n[22:0]!='0; }
-  // constraint NAN{n[30:23]!='1;}
-  // constraint sign{n[31]==1'b1;}
+
+  constraint denorm{n[30:23]!='0;}
+  constraint infinity{n[30:23]!='1 && n[22:0]!='0; }
+  constraint NAN{n[30:23]!='1;}
+  constraint sign{n[31]==1'b0;}
 endclass
 
 class coverage_module;
@@ -23,24 +22,14 @@ class coverage_module;
   bit [31:0]b;
   bit [31:0]fp_result;
   covergroup fp_type;
-    // option.per_instance = 1; 
-    // option.auto_bin_max = 8;
-
+	
+    option.per_instance = 1; 
+	
     coverpoint fp_result{
-     
-      //bins posnorm={[32'b0_0000_0001_0000_0000_0000_0000_0000_000:32'b0_1111_1111_1111_1111_1111_1111_1111_111]};
-	  //bins negdenorm={[32'b1_0000_0000_0000_0000_0000_0000_0000_000:32'b1_0000_0000_1111_1111_1111_1111_1111_111]};
-      //bins posnorm={[32'b0_0000_0001_0000_0000_0000_0000_0000_000:32'b0_1111_1110_1111_1111_1111_1111_1111_111]};
-      //bins negnorm={[32'b1_0000_0001_0000_0000_0000_0000_0000_000:32'b1_1111_1110_1111_1111_1111_1111_1111_111]};
-	  
-	  
-	   
-	    bins posdenorm={[32'b0_0000_0000_0000_0000_0000_0000_0000_000:32'b0_0000_0000_0000_0000_0000_1111_1111_110]};
+       
+	    bins b1={[32'b0_0000_0000_0000_0000_0000_0000_0000_000:32'b0_0000_0000_0000_0000_0000_1111_1111_110]};
         bins zero={32'b0};
-	   //bins b1 = {[32'b0_0000_0000_0000_0000_0000_1111_1111_111:32'b0_0000_0000_1111_1111_1111_1111_1111_111]};
-	   //bins b1 = {[32'b0_0000_0000_0000_0000_0000_1111_1111_111:32'b0_0000_0000_1111_1111_1111_1111_1111_111]};
-	 //bins b2 = {32'b0_0000_0000_0000_0000_0100_1111_1111_111};
-	 //bins b3 = {32'b0_0000_1000_0000_0000_0100_1111_1111_111};
+	 
     }
     
   endgroup
@@ -77,9 +66,14 @@ module top;
     r_product_real = r_a*r_b;
      r_product=r_a*r_b;
      
+
      if(a[31]^b[31]==0)
-        begin  
-       if (r_product_real > 3.40282347e38) begin
+        begin 
+          if(a[30:0] =='0 || b[30:0] =='0) begin
+          O_test=0;U_test=0;
+        end
+            
+       else if (r_product_real > 3.40282347e38) begin
          O_test=1;U_test=0;end
        else if (r_product_real < 1.17549435e-38) begin
          U_test=1;O_test=0; end
@@ -88,7 +82,10 @@ module top;
      end
      
      else begin
-        if (r_product_real > -1.17549435e-38) begin
+       if(a[30:0]=='0 || b[30:0]=='0) begin
+          O_test=0;U_test=0;
+        end
+        else if (r_product_real > -1.17549435e-38) begin
         U_test=1;O_test=0;end
        else if (r_product_real < -3.40282347e38) begin
          O_test=1;U_test=0; end
@@ -99,14 +96,14 @@ module top;
          if((p.float_a == positive_infinity) || (p.float_a ==negative_infinity) ||(p.float_a == NaN)||(p.float_b == positive_infinity) || (p.float_b ==negative_infinity) ||(p.float_b == NaN)) begin
            $display("One of the input is %s",p.result_str);
            $display("@%0t a=%b b=%b",$time,a,b);
-       $display("______");
+       $display("________________");
          end
          
          else if(N==1) begin
            $display("Multiplication result is not a number!");
            $display("@%0t a=%b b=%b fp_result=%b",$time,a,b,fp_result);
             $display("r_a=%g r_b=%g r_product=%g O=%b U=%b",r_a,r_b,r_product,O_test,U_test);
-       $display("______");
+       $display("________________");
          end
          
          else if ((O==1)||(U==1)||(p.result_str==ZERO))
@@ -114,13 +111,13 @@ module top;
            $display(" Float Multiplication: %s", p.result_str); 
          $display("@%0t a=%b b=%b fp_result=%b Overflow=%0b Underflow=%0b",$time,a,b,fp_result,O,U);
            $display("r_a=%g r_b=%g r_product=%g O=%b U=%b",r_a,r_b,r_product,O_test,U_test);
-           $display("______");
+           $display("________________");
          end
          
      else if((((O==O_test)&&(U==U_test)) || ($shortrealtobits(r_product)==fp_result))) begin
        $display("@%0t a=%b b=%b fp_result=%b Overflow=%0b Underflow=%0b Result is: %s",$time,a,b,fp_result,O,U,p.result_str);
          $display("r_a=%g r_b=%g r_product=%g O=%b U=%b",r_a,r_b,r_product,O_test,U_test);
-  $display("______");
+  $display("________________");
      end
 	endtask
  
@@ -202,9 +199,6 @@ module top;
       trb = new();
       cg = new();
     repeat(1000) begin
-      // tra = new();
-      // trb = new();
-      // cg = new();
       while((cg.fp_type.get_coverage() < 100)) begin
         assert(tra.randomize());
         assert(trb.randomize());
