@@ -21,18 +21,15 @@ class coverage_module;
   bit [31:0]a;
   bit [31:0]b;
   bit [31:0]fp_result;
+  
   covergroup fp_type;
-	
-    option.per_instance = 1; 
-	
-    coverpoint fp_result{
-       
-	    bins b1={[32'b0_0000_0000_0000_0000_0000_0000_0000_000:32'b0_0000_0000_0000_0000_0000_1111_1111_110]};
-        bins zero={32'b0};
-	 
-    }
-    
+	option.per_instance = 1; 
+	coverpoint fp_result{
+       bins b1={[32'b0_0000_0000_0000_0000_0000_0000_0000_000:32'b0_0000_0000_0000_0000_0000_1111_1111_110]};
+       bins zero={32'b0};
+	 }  
   endgroup
+  
   function new();
     fp_type = new;
   endfunction
@@ -67,58 +64,57 @@ module top;
      r_product=r_a*r_b;
      
 
-     if(a[31]^b[31]==0)
+    if(a[31]^b[31]==0)
         begin 
-          if(a[30:0] =='0 || b[30:0] =='0) begin
-          O_test=0;U_test=0;
-        end
-            
-       else if (r_product_real > 3.40282347e38) begin
-         O_test=1;U_test=0;end
-       else if (r_product_real < 1.17549435e-38) begin
-         U_test=1;O_test=0; end
-     else begin
-       O_test=0;  U_test=0; end
-     end
+			if(a[30:0] =='0 || b[30:0] =='0) begin
+			O_test=0;U_test=0;
+        end       
+    else if (r_product_real > 3.40282347e38) begin
+        O_test=1;U_test=0;end
+    else if (r_product_real < 1.17549435e-38) begin
+        U_test=1;O_test=0; end
+    else begin
+		O_test=0;  U_test=0; end
+		end
      
      else begin
-       if(a[30:0]=='0 || b[30:0]=='0) begin
-          O_test=0;U_test=0;
+		if(a[30:0]=='0 || b[30:0]=='0) begin
+			O_test=0;U_test=0;
         end
         else if (r_product_real > -1.17549435e-38) begin
-        U_test=1;O_test=0;end
-       else if (r_product_real < -3.40282347e38) begin
-         O_test=1;U_test=0; end
-     else begin
-       O_test=0;  U_test=0; end 
+			U_test=1;O_test=0;end
+		else if (r_product_real < -3.40282347e38) begin
+			O_test=1;U_test=0; end
+		else begin
+			O_test=0;  U_test=0; end 
      end
          
          if((p.float_a == positive_infinity) || (p.float_a ==negative_infinity) ||(p.float_a == NaN)||(p.float_b == positive_infinity) || (p.float_b ==negative_infinity) ||(p.float_b == NaN)) begin
-           $display("One of the input is %s",p.result_str);
-           $display("@%0t a=%b b=%b",$time,a,b);
-       $display("________________");
+			$display("One of the input is %s",p.result_str);
+			$display("@%0t a=%b b=%b",$time,a,b);
+			$display("______");
          end
          
          else if(N==1) begin
-           $display("Multiplication result is not a number!");
-           $display("@%0t a=%b b=%b fp_result=%b",$time,a,b,fp_result);
+			$display("Multiplication result is not a number!");
+			$display("@%0t a=%b b=%b fp_result=%b",$time,a,b,fp_result);
             $display("r_a=%g r_b=%g r_product=%g O=%b U=%b",r_a,r_b,r_product,O_test,U_test);
-       $display("________________");
+			$display("______");
          end
          
          else if ((O==1)||(U==1)||(p.result_str==ZERO))
          begin 
-           $display(" Float Multiplication: %s", p.result_str); 
-         $display("@%0t a=%b b=%b fp_result=%b Overflow=%0b Underflow=%0b",$time,a,b,fp_result,O,U);
-           $display("r_a=%g r_b=%g r_product=%g O=%b U=%b",r_a,r_b,r_product,O_test,U_test);
-           $display("________________");
+			$display(" Float Multiplication: %s", p.result_str); 
+			$display("@%0t a=%b b=%b fp_result=%b Overflow=%0b Underflow=%0b",$time,a,b,fp_result,O,U);
+			$display("r_a=%g r_b=%g r_product=%g O=%b U=%b",r_a,r_b,r_product,O_test,U_test);
+			$display("______");
          end
          
-     else if((((O==O_test)&&(U==U_test)) || ($shortrealtobits(r_product)==fp_result))) begin
-       $display("@%0t a=%b b=%b fp_result=%b Overflow=%0b Underflow=%0b Result is: %s",$time,a,b,fp_result,O,U,p.result_str);
-         $display("r_a=%g r_b=%g r_product=%g O=%b U=%b",r_a,r_b,r_product,O_test,U_test);
-  $display("________________");
-     end
+		else if((((O==O_test)&&(U==U_test)) || ($shortrealtobits(r_product)==fp_result))) begin
+			$display("@%0t a=%b b=%b fp_result=%b Overflow=%0b Underflow=%0b Result is: %s",$time,a,b,fp_result,O,U,p.result_str);
+			$display("r_a=%g r_b=%g r_product=%g O=%b U=%b",r_a,r_b,r_product,O_test,U_test);
+			$display("______");
+		end
 	endtask
  
   initial begin
@@ -219,21 +215,21 @@ module top;
      
      if(a[31]^b[31]==0)
         begin  
-       if (r_product_real > 3.40282347e38) begin
-         O_test=1;U_test=0;end
-       else if (r_product_real < 1.17549435e-38) begin
-         U_test=1;O_test=0; end
-     else begin
-       O_test=0;  U_test=0; end
+		if (r_product_real > 3.40282347e38) begin
+			O_test=1;U_test=0;end
+		else if (r_product_real < 1.17549435e-38) begin
+			U_test=1;O_test=0; end
+		else begin
+			O_test=0;  U_test=0; end
      end
      
      else begin
         if (r_product_real > -1.17549435e-38) begin
-        U_test=1;O_test=0;end
-       else if (r_product_real < -3.40282347e38) begin
-         O_test=1;U_test=0; end
-     else begin
-       O_test=0; U_test=0; end
+			U_test=1;O_test=0;end
+		else if (r_product_real < -3.40282347e38) begin
+			O_test=1;U_test=0; end
+		else begin
+			O_test=0; U_test=0; end
      end
         
         if (N!=1) begin
@@ -244,12 +240,13 @@ module top;
           $display("-----------------------------------"); 
           failed=failed+1;
         end
-        end
-      end end
+			end
+				end 
+	end
     end
     $display("overall coverage = %0f", $get_coverage());
     if (failed==0)
-      $display("-------Passed!----------"); 
+    $display("-------Passed!----------"); 
     end
   `endif
 endmodule
