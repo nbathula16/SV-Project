@@ -1,2 +1,2 @@
 # SV-Project
-32bit Single Precision Floating point Multiplication
+32-bit Single Precision Floating point Multiplication
