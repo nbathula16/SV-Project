@@ -18,21 +18,22 @@ module if_normal(input bit [31:0] I,
       begin:floattype
         
       if (Out_exponent=='0) begin
-      form = denormalized;
-      Out_mantissa = {1'b0,mantissa}; end
+		form = denormalized;
+		Out_mantissa = {1'b0,mantissa}; end
         
       else if (Out_exponent == '1) begin
-      if(mantissa == '0) begin
-        if(Out_sign == '0) form = positive_infinity;
-        if(Out_sign == '1) form = negative_infinity;
-      end
-      else form = NaN;
-    end
+		if(mantissa == '0) 
+		begin
+			if(Out_sign == '0) form = positive_infinity;
+			if(Out_sign == '1) form = negative_infinity;
+		end
+        else form = NaN; end
         
     else  begin 
       form = normalized;
       Out_mantissa = {1'b1,mantissa}; end
     end :floattype
+	
 endmodule
 
 module product(input logic [31:0]a,b,
@@ -57,103 +58,108 @@ module product(input logic [31:0]a,b,
   assign state= mul_result[47:46];
  
   always_comb begin//normalizing the multiplication result
+  
     unique case(state)
+	
       2'b00: begin 
-        if(a==32'b0 || b==32'b0) begin 
-          result_mantissa=48'b0; 
-          additional_exponent=0;
-          denorm_shift= 0; end
-        else begin
-        for(i=47; i>=0; i--) begin
-        count = i;
-        shift = 48-count;
-          if(mul_result[i]==1'b1) break; 
-       end
-        result_mantissa={mul_result<<shift};
-        denorm_shift= 47-count-1; 
-        end end
+			if(a==32'b0 || b==32'b0) begin 
+			result_mantissa=48'b0; 
+			additional_exponent=0;
+			denorm_shift= 0; end
+		  
+			else begin
+			for(i=47; i>=0; i--) begin
+			count = i;
+			shift = 48-count;
+				if(mul_result[i]==1'b1) break; 
+            end
+			result_mantissa={mul_result<<shift};
+			denorm_shift= 47-count-1; 
+			end 
+			end
       2'b01: begin
             result_mantissa={mul_result[45:0],2'b00};
-        additional_exponent=0; 
-      denorm_shift= 0;end
+			additional_exponent=0; 
+			denorm_shift= 0;end
       2'b10: begin 
-              result_mantissa={mul_result[46:0],1'b0};
-        additional_exponent=1;
-      denorm_shift= 0;
-      end
+            result_mantissa={mul_result[46:0],1'b0};
+			additional_exponent=1;
+			denorm_shift= 0;
+			end
       2'b11: begin
-       result_mantissa={mul_result[46:0],1'b0};
-        additional_exponent=1;
-      denorm_shift= 0;
-      end
+			result_mantissa={mul_result[46:0],1'b0};
+			additional_exponent=1;
+			denorm_shift= 0;
+			end
     endcase
   end
   
   always_comb
     begin:Compute_final_result
-      if (a=='0 || b=='0) begin //a and b inputs zero
+	
+    if (a=='0 || b=='0) begin //a and b inputs zero
         result_str= ZERO;  U=0;O=0; 
 		fp_result=32'b0;
 		end
       
-     else if ((float_a == positive_infinity) || (float_a ==negative_infinity) ||(float_a == NaN)) result_str = float_a; //Checking the float-type of input 1
+    else if ((float_a == positive_infinity) || (float_a ==negative_infinity) ||(float_a == NaN)) result_str = float_a; //Checking the float-type of input 1
    
-      else if ((float_b == positive_infinity) || (float_b ==negative_infinity) ||(float_b == NaN)) result_str = float_b; //Checking the float-type of input2
+     else if ((float_b == positive_infinity) || (float_b ==negative_infinity) ||(float_b == NaN)) result_str = float_b; //Checking the float-type of input2
       
-      else begin
+    else begin
       
         if ((a_exp=='0) && (b_exp=='0))begin //a and b denormalized
-          exponent=(-126+-126+round_carry+additional_exponent-denorm_shift+127);
-      result_str = UNDERFLOW;
-        U=1;O=0; end
+			exponent=(-126+-126+round_carry+additional_exponent-denorm_shift+127);
+			result_str = UNDERFLOW;
+			U=1;O=0; 
+		end
       
         else if ((a_exp=='0) && (b_exp!=='0)) begin //a-denormalized b-normalized
-          {carry,exponent}= (-126+b_exp+round_carry+additional_exponent-denorm_shift);
-      if(exponent=='1 && mantissa!='1)  begin 
-       result_str=NaN; U=0;O=0;N=1; end
-          else if((-126+b_exp-127+round_carry+additional_exponent-denorm_shift+127) < (1)) begin
-          result_str= UNDERFLOW; U=1;O=0;end
-          else if((-126+b_exp-127+round_carry+additional_exponent-denorm_shift+126) == (0)) begin
-          exponent='0; U=0;O=0; end
-          else if((-126+b_exp-127+round_carry+additional_exponent-denorm_shift+127) > (254)) begin
-            result_str= OVERFLOW; U=0;O=1;end 
-       else begin
-          result_str = VALID;  
-     U=0;O=0; end
-      end
+			{carry,exponent}= (-126+b_exp+round_carry+additional_exponent-denorm_shift);
+				if(exponent=='1 && mantissa!='1)  begin 
+					result_str=NaN; U=0;O=0;N=1; end
+				else if((-126+b_exp-127+round_carry+additional_exponent-denorm_shift+127) < (1)) begin
+					result_str= UNDERFLOW; U=1;O=0;end
+				else if((-126+b_exp-127+round_carry+additional_exponent-denorm_shift+126) == (0)) begin
+					exponent='0; U=0;O=0; end
+				else if((-126+b_exp-127+round_carry+additional_exponent-denorm_shift+127) > (254)) begin
+					result_str= OVERFLOW; U=0;O=1;end 
+				else begin
+					result_str = VALID;  
+					U=0;O=0; end
+		end
       
-        else if ((a_exp!=='0) && (b_exp=='0)) //a-normalized b-denormalized
-        begin
-          {carry,exponent}= {-126+a_exp+round_carry+additional_exponent-denorm_shift};
-          if(exponent=='1 && mantissa!='1)  begin 
-       result_str=NaN; U=0;O=0;N=1; end
-          else if((-126+a_exp-127+round_carry+additional_exponent-denorm_shift+127) < (1)) begin
-          result_str= UNDERFLOW; U=1;O=0;end
-          else if((-126+a_exp-127+round_carry+additional_exponent-denorm_shift+126) == (0)) begin
-          exponent='0; U=0;O=0; end
-          else if((-126+a_exp-127+round_carry+additional_exponent-denorm_shift+127)>(254)) begin
-            result_str= OVERFLOW; U=0;O=1;end
-        else begin  
-          result_str = VALID;  
-     U=0;O=0; end
-      end 
+        else if ((a_exp!=='0) && (b_exp=='0)) begin //a-normalized b-denormalized
+			{carry,exponent}= {-126+a_exp+round_carry+additional_exponent-denorm_shift};
+				if(exponent=='1 && mantissa!='1)  begin 
+					result_str=NaN; U=0;O=0;N=1; end
+				else if((-126+a_exp-127+round_carry+additional_exponent-denorm_shift+127) < (1)) begin
+					result_str= UNDERFLOW; U=1;O=0;end
+				else if((-126+a_exp-127+round_carry+additional_exponent-denorm_shift+126) == (0)) begin
+					exponent='0; U=0;O=0; end
+				else if((-126+a_exp-127+round_carry+additional_exponent-denorm_shift+127)>(254)) begin
+					result_str= OVERFLOW; U=0;O=1;end
+				else begin  
+					result_str = VALID;  
+					U=0;O=0; end
+		end 
       
-    else begin //a and b normalized
-    {carry,exponent}= {a_exp+b_exp+round_carry+additional_exponent-127};
+		else begin //a and b normalized
+			{carry,exponent}= {a_exp+b_exp+round_carry+additional_exponent-127};
       
-      if(exponent=='1 && mantissa!=='1)  begin 
-       result_str=NaN; U=0;O=0;N=1; end
+				if(exponent=='1 && mantissa!=='1)  begin 
+					result_str=NaN; U=0;O=0;N=1; end
       
-      else if({b_exp+a_exp+round_carry+additional_exponent-127} < 1) begin
-          result_str= UNDERFLOW; U=1;O=0;end
+				else if({b_exp+a_exp+round_carry+additional_exponent-127} < 1) begin
+					result_str= UNDERFLOW; U=1;O=0;end
       
-      else if({b_exp-127+a_exp+round_carry+additional_exponent+126} == 0)     begin
-          exponent='0; U=0;O=0; end
-      else if(carry>0)begin
-            result_str= OVERFLOW; U=0;O=1;end
-        else begin  
-          result_str = VALID;  
-     U=0;O=0; end
+				else if({b_exp-127+a_exp+round_carry+additional_exponent+126} == 0)     begin
+					exponent='0; U=0;O=0; end
+				else if(carry>0)begin
+					result_str= OVERFLOW; U=0;O=1;end
+				else begin  
+					result_str = VALID;  
+					U=0;O=0; end
       end 
       end
       sum_exp= {carry,exponent};  
@@ -165,14 +171,11 @@ module product(input logic [31:0]a,b,
   
     always_comb
       begin
-	  // a_zero: assert($countones(a)||$countones(b)==(!(result_str == ZERO)))
-          // else $info("Wrong Zero,%b,%b,%b",a,b,fp_result);
+
         a_inputs:  assert(!$isunknown(b))
           else  $info("Unknown inputs");
-        // a_overflow: assert((U||N)||(carry ~^ O))
-        // else $info("Overflow Flag Error");
-//         a_underflow: assert((result_str == VALID)||(U&&~O&&~N))
-//           else $error("Underflow Flag Error");
+        a_overflow: assert((U||N)||(carry ~^ O))
+         else $info("Overflow Flag Error");
         
         end
 		
