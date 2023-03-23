@@ -1,3 +1,8 @@
+package float_type;
+typedef enum {normalized,denormalized,positive_infinity,negative_infinity,NaN,VALID,OVERFLOW,UNDERFLOW,ZERO} type_of_float;
+endpackage
+
+import float_type::*;
 module product(input logic [31:0]a,b,
                output bit [31:0] fp_result,
                output bit U,O,N);
